@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js 3D 粒子特效</title>
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background: #000;
+        }
+        canvas { 
+            display: block; 
+        }
+    </style>
+</head>
+<body>
+<script type="importmap">
+{
+    "imports": {
+        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.162.0/three.module.min.js"
+    }
+}
+</script>
+<script type="module">
+    import * as THREE from 'three';
+
+    const scene = new THREE.Scene();
+    
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, -60, 90);
+    camera.lookAt(0, 0, 0);
+    camera.up.set(0, 0, 1);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    document.body.appendChild(renderer.domElement);
+
+    const SCALE = 28;
+    const particleCount = 400000;  // 将粒子数量翻倍
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const color = new THREE.Color();
+
+    let minZ = Infinity;
+    let maxZ = -Infinity;
+
+    // 设置粒子位置
+    for (let i = 0; i < particleCount; i++) {
+        const x = (i % 70) / 69.0;  // 调整网格密度以适应更多粒子
+        const t = (Math.floor(i / 70) / 1650) * 20 * Math.PI + 4 * Math.PI;
+
+        const p = (Math.PI / 2) * Math.exp(-t / (8 * Math.PI));
+        const change = Math.sin(15 * t) / 150;
+        const u = 1 - (1 - ((3.3 * t) % (2 * Math.PI)) / Math.PI) ** 4 / 2 + change;
+        const y = 2 * (x ** 2 - x) ** 2 * Math.sin(p);
+        const r = u * (x * Math.sin(p) + y * Math.cos(p));
+        const h = u * (x * Math.cos(p) - y * Math.sin(p));
+
+        positions[i * 3] = r * Math.cos(t) * SCALE;
+        positions[i * 3 + 1] = r * Math.sin(t) * SCALE;
+        positions[i * 3 + 2] = h * SCALE;
+
+        const zPos = h * SCALE;
+        if (zPos < minZ) minZ = zPos;
+        if (zPos > maxZ) maxZ = zPos;
+    }
+
+    // 设置颜色，使其更深
+    for (let i = 0; i < particleCount; i++) {
+        const zPos = positions[i * 3 + 2];
+        const normalizedHeight = (zPos - minZ) / (maxZ - minZ);
+        
+        const hue = 0.75 - normalizedHeight * 0.15;
+        color.setHSL(
+            hue,
+            0.9,  // 增加饱和度
+            0.3 + normalizedHeight * 0.15  // 降低亮度范围
+        );
+
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+    const material = new THREE.PointsMaterial({
+        size: 0.25,  // 稍微减小粒子大小以适应更高密度
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.8,
+        blending: THREE.AdditiveBlending
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+
+    // 鼠标控制
+    let isDragging = false;
+    let previousMousePosition = {
+        x: 0,
+        y: 0
+    };
+
+    document.addEventListener('mousedown', (e) => {
+        isDragging = true;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            const deltaMove = {
+                x: e.offsetX - previousMousePosition.x,
+                y: e.offsetY - previousMousePosition.y
+            };
+
+            particles.rotation.z -= deltaMove.x * 0.005;
+            particles.rotation.x += deltaMove.y * 0.005;
+        }
+
+        previousMousePosition = {
+            x: e.offsetX,
+            y: e.offsetY
+        };
+    });
+
+    document.addEventListener('mouseup', (e) => {
+        isDragging = false;
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        particles.rotation.z -= 0.001;
+        renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+    });
+
+    animate();
+</script>
+</body>
+</html>
