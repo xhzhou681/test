@@ -1,0 +1,54 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "3066:3066"
+    environment:
+      MYSQL_HOST: ${MYSQL_HOST}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_DB: ${MYSQL_DATABASE}
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    platform: linux/arm64/v8
+    ports:
+      - "8086:80"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./frontend/build:/usr/share/nginx/html
+    depends_on:
+      - frontend
+      - backend
+
+  mysql:
+    image: mysql:8.0
+    platform: linux/arm64/v8
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql/initdb:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  mysql_data:
